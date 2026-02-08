@@ -1,0 +1,12 @@
+{
+  "title": "PlaybookSpec",
+  "type": "object",
+  "required": [
+    "playbook_id",
+    "version",
+    "intent",
+    "steps",
+    "guardrails",
+    "expected_outputs"
+  ]
+}

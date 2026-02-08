@@ -1,0 +1,18 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Local mining/state outputs (not for contribution)
+out/
+state/
+runs/logs/
+*.db
+
+# Keep versioned directories but ignore ad-hoc files
+candidates/*.json
+feedback/*.json
+runs/*.json
+
+# Keep sanitized/published artifacts explicitly tracked by users when needed
+!candidates/published/*.json
+

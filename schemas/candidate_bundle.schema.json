@@ -1,0 +1,11 @@
+{
+  "title": "CandidateBundle",
+  "type": "object",
+  "required": [
+    "bundle_id",
+    "created_at",
+    "patterns",
+    "source_summary"
+  ]
+}
+

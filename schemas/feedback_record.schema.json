@@ -1,0 +1,12 @@
+{
+  "title": "FeedbackRecord",
+  "type": "object",
+  "required": [
+    "feedback_id",
+    "run_id",
+    "playbook_id",
+    "outcome",
+    "rating",
+    "created_at"
+  ]
+}

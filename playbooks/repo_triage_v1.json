@@ -1,0 +1,61 @@
+{
+  "playbook_id": "repo_triage_v1",
+  "version": 1,
+  "intent": "Standardized repository triage for debugging and data collection.",
+  "triggers": [
+    "failing tests",
+    "unexpected runtime errors",
+    "release readiness check"
+  ],
+  "tags": [
+    "debug",
+    "automation",
+    "data",
+    "python",
+    "git",
+    "make"
+  ],
+  "inputs": [
+    "repo_path",
+    "env"
+  ],
+  "steps": [
+    {
+      "id": "verify_repo",
+      "description": "Ensure the target directory is a git repository.",
+      "command": "git -C {{repo_path}} rev-parse --is-inside-work-tree"
+    },
+    {
+      "id": "capture_git_state",
+      "description": "Capture concise branch and status information.",
+      "command": "git -C {{repo_path}} status --short --branch"
+    },
+    {
+      "id": "run_tests",
+      "description": "Run standard automated tests.",
+      "command": "make -C {{repo_path}} test"
+    },
+    {
+      "id": "build_artifacts",
+      "description": "Run build validation step.",
+      "command": "make -C {{repo_path}} build"
+    },
+    {
+      "id": "collect_python_env",
+      "description": "Capture Python runtime version for reproducibility.",
+      "command": "python --version"
+    }
+  ],
+  "guardrails": [
+    "default_plan_mode",
+    "explicit_execute_required",
+    "no_destructive_commands"
+  ],
+  "expected_outputs": [
+    "step_statuses",
+    "command_logs",
+    "next_actions"
+  ],
+  "owner": "template-maintainers"
+}
+

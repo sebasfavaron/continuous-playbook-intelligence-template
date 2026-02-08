@@ -1,0 +1,12 @@
+{
+  "title": "RunRecord",
+  "type": "object",
+  "required": [
+    "run_id",
+    "playbook_id",
+    "mode",
+    "steps",
+    "started_at",
+    "finished_at"
+  ]
+}
