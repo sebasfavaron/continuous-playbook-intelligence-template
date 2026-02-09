@@ -19,3 +19,26 @@
 4. Commit and open PR.
 
 All contributions are explicit opt-in and local-first.
+
+## Multi-repo state restore (after feature completion)
+
+If `feature_lifecycle_multirepo_v1` ran `snapshot_local_changes`, restore prior local staged/unstaged/untracked state with the stash snapshot created per repo.
+State snapshots are persisted in:
+`.cpi-state/<feature-branch>/<repo>.pre-state.txt` and `.cpi-state/<feature-branch>/<repo>.stash-meta.txt`
+
+1. Locate snapshot stash entries:
+   `git -C <repo_path> stash list --date=local | rg "cpi-pre-branch-<feature-branch>"`
+2. Restore without dropping snapshot:
+   `git -C <repo_path> stash apply stash@{N}`
+3. Restore and drop snapshot:
+   `git -C <repo_path> stash pop stash@{N}`
+4. Verify non-branch git state after restore:
+   `git -C <repo_path> status --short --branch`
+5. Verify upstream tracking and divergence:
+   `git -C <repo_path> rev-parse --abbrev-ref --symbolic-full-name @{u}`
+   `git -C <repo_path> rev-list --left-right --count @{u}...HEAD`
+6. Verify submodules and worktrees where relevant:
+   `git -C <repo_path> submodule status`
+   `git -C <repo_path> worktree list`
+7. Verify no in-progress git operations remain:
+   check `.git/rebase-merge`, `.git/rebase-apply`, `.git/MERGE_HEAD`, `.git/CHERRY_PICK_HEAD`

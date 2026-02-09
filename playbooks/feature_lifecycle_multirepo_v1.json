@@ -1,0 +1,123 @@
+{
+  "playbook_id": "feature_lifecycle_multirepo_v1",
+  "version": 1,
+  "intent": "Coordinate the multi-repo feature lifecycle from start/status/commit/finish in a consistent, auditable flow.",
+  "triggers": [
+    "start a feature across multiple repositories",
+    "need cross-repo delivery status",
+    "prepare cross-repo commits and pull requests"
+  ],
+  "tags": [
+    "wf:lifecycle",
+    "wf:multirepo",
+    "wf:status",
+    "wf:commit",
+    "wf:finish",
+    "git",
+    "github",
+    "delivery"
+  ],
+  "inputs": [
+    "repo_path",
+    "env"
+  ],
+  "agent_policy": {
+    "mode": "agnostic",
+    "preferred_agents": [],
+    "notes": "Provider-neutral workflow. Optionally set preferred_agents for local routing if needed."
+  },
+  "state_management": {
+    "snapshot_step_id": "snapshot_local_changes",
+    "snapshot_ref_prefix": "cpi-pre-branch-",
+    "snapshot_dir": ".cpi-state",
+    "state_dimensions": [
+      "current_branch",
+      "staged_changes",
+      "unstaged_changes",
+      "untracked_files",
+      "stash_entries",
+      "upstream_tracking",
+      "ahead_behind_counts",
+      "submodule_state",
+      "worktree_state",
+      "in_progress_ops",
+      "stash_object_id"
+    ],
+    "restore_notes": [
+      "After finishing the feature, restore pre-branch local state per repository by listing stash entries and applying the matching cpi snapshot.",
+      "Recommended: git stash list --date=local | rg cpi-pre-branch-<feature-branch>",
+      "Restore without dropping: git stash apply stash@{N}",
+      "Restore and remove snapshot: git stash pop stash@{N}",
+      "Verify git status, branch, upstream, and ahead/behind after restore.",
+      "If a repo had in-progress operations (rebase/cherry-pick/merge), resolve or abort those before restore."
+    ]
+  },
+  "steps": [
+    {
+      "id": "validate_workspace",
+      "description": "Ensure the target path contains at least one git repository.",
+      "command": "find {{repo_path}} -maxdepth 2 -type d -name .git | head -n 1"
+    },
+    {
+      "id": "load_feature_context",
+      "description": "Load current multi-repo feature context when present.",
+      "command": "test -f {{repo_path}}/.cursor/.workspace-context.json && cat {{repo_path}}/.cursor/.workspace-context.json || echo \"no workspace context file found\""
+    },
+    {
+      "id": "capture_repo_state_snapshot",
+      "description": "Persist structured pre-snapshot git state per repository.",
+      "command": "feature_branch=\"{{env}}\"; snapshot_dir=\"{{repo_path}}/.cpi-state/$feature_branch\"; mkdir -p \"$snapshot_dir\"; for d in {{repo_path}}/*; do if [ -d \"$d/.git\" ]; then repo=$(basename \"$d\"); out=\"$snapshot_dir/$repo.pre-state.txt\"; echo \"repo=$repo\" > \"$out\"; echo \"path=$d\" >> \"$out\"; echo \"feature_branch=$feature_branch\" >> \"$out\"; echo \"captured_at=$(date -Is)\" >> \"$out\"; echo \"branch=$(git -C \"$d\" branch --show-current)\" >> \"$out\"; echo \"upstream=$(git -C \"$d\" rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo none)\" >> \"$out\"; echo \"ahead_behind=$(git -C \"$d\" rev-list --left-right --count @{u}...HEAD 2>/dev/null || echo none)\" >> \"$out\"; echo \"stash_head_before=$(git -C \"$d\" rev-parse --verify -q refs/stash || echo none)\" >> \"$out\"; echo \"in_progress_rebase_merge=$([ -d \"$d/.git/rebase-merge\" ] && echo 1 || echo 0)\" >> \"$out\"; echo \"in_progress_rebase_apply=$([ -d \"$d/.git/rebase-apply\" ] && echo 1 || echo 0)\" >> \"$out\"; echo \"in_progress_merge_head=$([ -f \"$d/.git/MERGE_HEAD\" ] && echo 1 || echo 0)\" >> \"$out\"; echo \"in_progress_cherry_pick=$([ -f \"$d/.git/CHERRY_PICK_HEAD\" ] && echo 1 || echo 0)\" >> \"$out\"; echo \"--- status_porcelain_v1 ---\" >> \"$out\"; git -C \"$d\" status --porcelain=v1 >> \"$out\"; echo \"--- status_porcelain_v2_branch ---\" >> \"$out\"; git -C \"$d\" status --porcelain=v2 --branch >> \"$out\"; echo \"--- submodule_status ---\" >> \"$out\"; git -C \"$d\" submodule status >> \"$out\" 2>/dev/null || true; echo \"--- worktree_list ---\" >> \"$out\"; git -C \"$d\" worktree list >> \"$out\" 2>/dev/null || true; fi; done; echo \"snapshot_dir=$snapshot_dir\""
+    },
+    {
+      "id": "snapshot_local_changes",
+      "description": "Save staged/unstaged/untracked changes before branch orchestration.",
+      "command": "feature_branch=\"{{env}}\"; snapshot_dir=\"{{repo_path}}/.cpi-state/$feature_branch\"; mkdir -p \"$snapshot_dir\"; for d in {{repo_path}}/*; do if [ -d \"$d/.git\" ]; then repo=$(basename \"$d\"); meta=\"$snapshot_dir/$repo.stash-meta.txt\"; before=$(git -C \"$d\" rev-parse --verify -q refs/stash || echo none); if [ -n \"$(git -C \"$d\" status --porcelain)\" ]; then echo \"== $repo == stashing changes\"; git -C \"$d\" stash push -u -m \"cpi-pre-branch-$feature_branch\"; after=$(git -C \"$d\" rev-parse --verify -q refs/stash || echo none); echo \"repo=$repo\" > \"$meta\"; echo \"feature_branch=$feature_branch\" >> \"$meta\"; echo \"stash_head_before=$before\" >> \"$meta\"; echo \"stash_head_after=$after\" >> \"$meta\"; echo \"created_at=$(date -Is)\" >> \"$meta\"; else echo \"== $repo == clean\"; echo \"repo=$repo\" > \"$meta\"; echo \"feature_branch=$feature_branch\" >> \"$meta\"; echo \"stash_head_before=$before\" >> \"$meta\"; echo \"stash_head_after=$before\" >> \"$meta\"; echo \"created_at=$(date -Is)\" >> \"$meta\"; echo \"stashed=0\" >> \"$meta\"; fi; fi; done; echo \"snapshot_dir=$snapshot_dir\""
+    },
+    {
+      "id": "branch_from_base",
+      "description": "Create/check out feature branch from each repo base branch according to workspace conventions.",
+      "command": "feature_branch=\"{{env}}\"; case \"$feature_branch\" in local|dry-run|dummy|'') echo \"branch creation skipped: provide feature branch name in --env\"; exit 0;; esac; for d in {{repo_path}}/*; do if [ -d \"$d/.git\" ]; then repo=$(basename \"$d\"); base=\"\"; case \"$repo\" in humand-main-api|humand-web|humand-backoffice|humand-mobile) base=\"develop\";; material-hu|hu-translations) base=\"main\";; *) echo \"== $repo == no base mapping\"; continue;; esac; current=$(git -C \"$d\" branch --show-current); if [ \"$current\" = \"$feature_branch\" ]; then echo \"== $repo == already on $feature_branch\"; continue; fi; if [ \"$current\" != \"$base\" ]; then echo \"== $repo == expected base $base but found $current\"; continue; fi; echo \"== $repo == creating/checking out $feature_branch from $base\"; git -C \"$d\" fetch origin \"$base\" && git -C \"$d\" pull origin \"$base\" && (git -C \"$d\" checkout -b \"$feature_branch\" 2>/dev/null || git -C \"$d\" checkout \"$feature_branch\"); fi; done"
+    },
+    {
+      "id": "cross_repo_status",
+      "description": "Collect branch and dirty-state status for each repository under the workspace root.",
+      "command": "for d in {{repo_path}}/*; do if [ -d \"$d/.git\" ]; then echo \"== $(basename \"$d\") ==\"; git -C \"$d\" branch --show-current; git -C \"$d\" status --short; echo; fi; done"
+    },
+    {
+      "id": "unpushed_commit_check",
+      "description": "Identify repositories with local commits ahead of upstream.",
+      "command": "for d in {{repo_path}}/*; do if [ -d \"$d/.git\" ]; then b=$(git -C \"$d\" branch --show-current); if [ -n \"$b\" ]; then c=$(git -C \"$d\" rev-list --count \"origin/$b..HEAD\" 2>/dev/null || echo 0); echo \"$(basename \"$d\"): ahead_by=$c\"; fi; fi; done"
+    },
+    {
+      "id": "preflight_quality_check",
+      "description": "Run lightweight quality gates where package metadata exists.",
+      "command": "for d in {{repo_path}}/*; do if [ -d \"$d/.git\" ] && [ -f \"$d/package.json\" ]; then echo \"== $(basename \"$d\") ==\"; (cd \"$d\" && (npm run lint --if-present || true) && (npm run type-check --if-present || true) && (npm run build --if-present || true)); fi; done"
+    },
+    {
+      "id": "next_action_hint",
+      "description": "Emit workflow hint for the next lifecycle transition.",
+      "command": "echo \"Lifecycle hint: start -> status -> commit -> finish (env={{env}})\""
+    },
+    {
+      "id": "state_restore_instructions",
+      "description": "Document how to restore pre-branch local state captured during snapshot_local_changes.",
+      "command": "feature_branch=\"{{env}}\"; echo \"State restore instructions for $feature_branch\"; for d in {{repo_path}}/*; do if [ -d \"$d/.git\" ]; then repo=$(basename \"$d\"); echo \"== $repo ==\"; git -C \"$d\" stash list --date=local | rg \"cpi-pre-branch-$feature_branch\" || echo \"no cpi snapshot stash found\"; echo \"restore: git -C $d stash apply stash@{N}\"; echo \"restore+drop: git -C $d stash pop stash@{N}\"; echo \"verify status: git -C $d status --short --branch\"; echo \"verify upstream: git -C $d rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo no-upstream\"; echo \"verify submodules: git -C $d submodule status 2>/dev/null || true\"; echo \"verify worktrees: git -C $d worktree list 2>/dev/null || true\"; echo \"verify in-progress ops: test -d $d/.git/rebase-merge -o -d $d/.git/rebase-apply -o -f $d/.git/MERGE_HEAD -o -f $d/.git/CHERRY_PICK_HEAD && echo in-progress-op || echo clean\"; echo; fi; done"
+    }
+  ],
+  "guardrails": [
+    "default_plan_mode",
+    "explicit_execute_required",
+    "no_destructive_commands"
+  ],
+  "expected_outputs": [
+    "repo_state_snapshot_files",
+    "pre_branch_stash_summary",
+    "state_restore_instructions",
+    "base_branch_transition_summary",
+    "cross_repo_status_snapshot",
+    "unpushed_commit_summary",
+    "quality_gate_results",
+    "next_actions"
+  ],
+  "owner": "template-maintainers"
+}

@@ -8,6 +8,9 @@
     "release readiness check"
   ],
   "tags": [
+    "wf:automation",
+    "wf:debug",
+    "wf:data",
     "debug",
     "automation",
     "data",
@@ -15,6 +18,11 @@
     "git",
     "make"
   ],
+  "agent_policy": {
+    "mode": "agnostic",
+    "preferred_agents": [],
+    "notes": "This playbook is agent-agnostic. Select any execution agent that supports shell command planning."
+  },
   "inputs": [
     "repo_path",
     "env"
@@ -58,4 +66,3 @@
   ],
   "owner": "template-maintainers"
 }
-

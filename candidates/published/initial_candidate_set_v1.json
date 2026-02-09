@@ -1,0 +1,72 @@
+{
+  "bundle_id": "candidate_bundle_initial_candidate_set_v1",
+  "created_at": "2026-02-08T00:00:00Z",
+  "miner_version": "seed-v1",
+  "source_summary": {
+    "total_events": 2,
+    "total_sessions": 1,
+    "patterns_found": 2,
+    "source_counts": {
+      "template_seed": 1,
+      "cursor_skill_docs": 1
+    },
+    "window_days": 0
+  },
+  "patterns": [
+    {
+      "pattern_id": "repo_triage_v1",
+      "label": "Repository triage baseline",
+      "taxonomy": [
+        "wf:automation",
+        "wf:debug",
+        "wf:data"
+      ],
+      "priority_score": 0.93,
+      "frequency": 1,
+      "representative_signals": [
+        "failing tests",
+        "runtime regression investigation",
+        "release readiness checks"
+      ],
+      "trigger": "Local repo triage and reproducibility checks."
+    },
+    {
+      "pattern_id": "feature_lifecycle_multirepo_v1",
+      "label": "Multi-repo feature lifecycle",
+      "taxonomy": [
+        "wf:lifecycle",
+        "wf:multirepo",
+        "wf:status",
+        "wf:commit",
+        "wf:finish"
+      ],
+      "priority_score": 0.91,
+      "frequency": 1,
+      "representative_signals": [
+        "start status commit finish sequence",
+        "cross-repo branch coordination",
+        "PR readiness tracking"
+      ],
+      "trigger": "Mined from /Users/sebas/Code/humand/.cursor skill sequence patterns."
+    }
+  ],
+  "candidate_classes": [
+    {
+      "playbook_id": "repo_triage_v1",
+      "origin": "template_seed",
+      "status": "active"
+    },
+    {
+      "playbook_id": "feature_lifecycle_multirepo_v1",
+      "origin": "mined_sequence_pattern",
+      "status": "active"
+    }
+  ],
+  "agent_policy": {
+    "mode": "agnostic",
+    "required_agent": null,
+    "recommended_agents": [],
+    "notes": "Playbooks are agent-agnostic by default. Set required_agent only when tooling constraints make it necessary."
+  },
+  "notes": "Initial Candidate Set V1 seeded from template triage and humand multi-repo lifecycle pattern."
+}
